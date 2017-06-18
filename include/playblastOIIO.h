@@ -2,17 +2,6 @@
  * Implement a playblast command that uses OpenImageIO to write data.
  * Replaces the need for 'maya.cmds.playblast' command.
  *
- * Goals:
- * - Simple plug-in command, relies on python wrapper to do the heavy lifting.
- * - Command flags should be logical - we will not maintain compatibility
- *   with 'maya.cmds.playblast'.
- * - OpenImageIO should be used for file writing and any image manipulation.
- * - Maya playblasts images should be able to be written in linear ACES
- *   colour-space, using OpenColorIO for implementation of colour conversions.
- * - 3D Motion Blur should be possible. This means playblasting more than one
- *   image, then averaging the resulting pixels together. This should be done
- *   efficiently.
- *
  * Based on 'blast2Cmd.cpp' from the Maya Devkit.
  */
 

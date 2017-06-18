@@ -2,110 +2,11 @@
  * Implement a playblast command that uses OpenImageIO to write data.
  * Replaces the need for 'maya.cmds.playblast' command.
  *
- * Goals:
- * - Simple plug-in command, relies on python wrapper to do the heavy lifting.
- * - Command flags should be logical - we will not maintain compatibility
- *   with 'maya.cmds.playblast'.
- * - OpenImageIO should be used for file writing and any image manipulation.
- * - Maya playblasts images should be able to be written in linear ACES
- *   colour-space, using OpenColorIO for implementation of colour conversions.
- * - 3D Motion Blur should be possible. This means playblasting more than one
- *   image, then averaging the resulting pixels together. This should be done
- *   efficiently.
- *
- * Based on 'blast2Cmd.cpp' from the Maya Dev-Kit.
+ * Based on 'blast2Cmd.cpp' from the Maya Devkit.
  *
  */
 
 #include <playblastOIIO.h>
-
-
-//// Parses a file path and returns index values for splitting/replacing
-//// the frame number.
-//bool parseFilePath(const std::string &filePath,
-//                          std::size_t *start,
-//                          std::size_t *end,
-//                          int *length) {
-//    bool result = false;
-//    *start = 0;
-//    *end = 0;
-//    *length = 0;
-//
-//    std::size_t foundPoundStart = filePath.find("#", 0, 1);
-//    std::size_t foundFormatStart = filePath.find("%0", 0, 2);
-//    if ((foundFormatStart != std::string::npos) ||
-//        (foundPoundStart != std::string::npos)) {
-//        std::size_t foundNumStart = std::string::npos;
-//        std::size_t foundNumEnd = std::string::npos;
-//        int num = 0;
-//
-//        if (foundFormatStart != std::string::npos) {
-//            std::size_t foundFormatEnd = filePath.find("d", foundFormatStart, 1);
-//            if (foundFormatEnd != std::string::npos) {
-//                foundNumStart = foundFormatStart;
-//                foundNumEnd = foundFormatEnd;
-//
-//                // Get number of padding.
-//                std::size_t startNum = foundNumStart + 2;
-//                std::size_t endNum = foundNumEnd;
-//                std::string numAsString = "";
-//                for (std::size_t i = startNum; i < endNum; i++) {
-//                    const char *letter = &filePath.at(i);
-//                    numAsString.append(letter);
-//                }
-//                num = stringToNumber(numAsString);
-//            }
-//        } else if (foundPoundStart != std::string::npos) {
-//            uint i = foundPoundStart;
-//            char letter = filePath.at(i);
-//            while (letter == '#') {
-//                letter = filePath.at(i);
-//                i++;
-//            }
-//
-//            foundNumStart = foundPoundStart;
-//            foundNumEnd = i - 2;
-//            num = (i - foundNumStart) - 1;
-//        } else {
-//            return false;
-//        }
-//
-//        *length = num;
-//        *start = foundNumStart;
-//        *end = foundNumEnd + 1;
-//        result = true;
-//    }
-//
-//    return result;
-//}
-//
-//// Lookup File Path.
-//// Replaces the image sequence frame placeholder with a formatted frame value.
-//std::string constructFilePath(const std::string &filePath, const int &time) {
-//    std::string result(filePath);
-//
-//    std::size_t start = 0;
-//    std::size_t end = 0;
-//    int length = 0;
-//    bool ok = parseFilePath(filePath, &start, &end, &length);
-//
-//    if (ok) {
-//        // Create final number string.
-//        std::ostringstream stream;
-//        stream.fill('0');
-//        stream.width(length);
-//        stream << time << "\0";
-//        std::string numStr = stream.str();
-//
-//        // do the padding.
-//        std::size_t startReplace = start;
-//        std::size_t endReplace = end;
-//        result.erase(startReplace, endReplace - startReplace);
-//        result.insert(startReplace, numStr);
-//    }
-//
-//    return result;
-//}
 
 
 playblastOIIOCmd::playblastOIIOCmd()

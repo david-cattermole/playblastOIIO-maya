@@ -1,5 +1,8 @@
 /*
- * Reads an OpenEXR file (or any other image file type) using OpenImageIO.
+ * Implement a playblast command that uses OpenImageIO to write data.
+ * Replaces the need for 'maya.cmds.playblast' command.
+ *
+ * Based on 'blast2Cmd.cpp' from the Maya Devkit.
  */
 
 #include <maya/MFnPlugin.h>
