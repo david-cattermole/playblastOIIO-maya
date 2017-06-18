@@ -1,0 +1,7 @@
+*.pyc
+cmake-build-debug
+cmake-build-release
+example_*
+temp
+tests
+test

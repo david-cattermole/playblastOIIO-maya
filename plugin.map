@@ -1,0 +1,20 @@
+/*
+ * When linking the plugin object, Maya only needs to know about the initialize and
+ * uninitialize function symbols, all other symbols can be hidden. This can fix symbol
+ * look up clashes when two plugins use different incompatible versions of the same
+ * library. This also helps to speed up initial library loading since the number of
+ * symbols to load is decreased.
+ *
+ * Symbols are exported for these functions:
+ * initializePlugin(MObject)
+ * uninitializePlugin(MObject)
+ */
+
+{
+    global: 
+        _Z16initializePlugin7MObject ;
+        _Z18uninitializePlugin7MObject ;
+		MApiVersion ;
+    local: 
+        *;
+};
