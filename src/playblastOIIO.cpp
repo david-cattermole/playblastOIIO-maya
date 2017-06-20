@@ -37,6 +37,7 @@ MSyntax playblastOIIOCmd::newSyntax() {
     syntax.addFlag(kStartFrameFlag, kStartFrameFlagLong, MSyntax::kTime);
     syntax.addFlag(kEndFrameFlag, kEndFrameFlagLong, MSyntax::kTime);
     syntax.addFlag(kImageSizeFlag, kImageSizeFlagLong, MSyntax::kUnsigned, MSyntax::kUnsigned);
+    syntax.addFlag(kUseOIIOFlag, kUseOIIOFlagLong, MSyntax::kBoolean);
     return syntax;
 }
 
@@ -54,6 +55,7 @@ MStatus playblastOIIOCmd::parseArgs(const MArgList &args) {
     m_end = 1.0;
     m_width = 0;
     m_height = 0;
+    m_useOIIO = 0;
 
     if (argData.isFlagSet(kFilenameFlag)) {
         status = argData.getFlagArgument(kFilenameFlag, 0, m_filename);
@@ -69,6 +71,9 @@ MStatus playblastOIIOCmd::parseArgs(const MArgList &args) {
     if (argData.isFlagSet(kImageSizeFlag)) {
         argData.getFlagArgument(kImageSizeFlag, 0, m_width);
         argData.getFlagArgument(kImageSizeFlag, 1, m_height);
+    }
+    if (argData.isFlagSet(kUseOIIOFlag)) {
+        argData.getFlagArgument(kUseOIIOFlag, 0, m_useOIIO);
     }
     return status;
 }
@@ -126,7 +131,6 @@ void playblastOIIOCmd::captureCallback(MHWRender::MDrawContext &context, void *c
 
     // Create a final frame name of:
     // <filename>.<framenumber>.<frameExtension>
-    // In this example we always write out iff files.
     MString frameName(cmd->m_filename);
     frameName += ".";
     frameName += cmd->m_currentTime.value();
@@ -141,6 +145,7 @@ void playblastOIIOCmd::captureCallback(MHWRender::MDrawContext &context, void *c
      *
      * Note that context.getCurrentDepthRenderTarget() can be used to access the depth buffer.
      */
+    OIIO::TypeDesc type_desc = OIIO::TypeDesc::UNKNOWN;
     const MHWRender::MRenderTarget *colorTarget = context.getCurrentColorRenderTarget();
     if (colorTarget) {
         // Query for the target format. If it is floating point then we switch
@@ -148,17 +153,32 @@ void playblastOIIOCmd::captureCallback(MHWRender::MDrawContext &context, void *c
         MString frameExtension;
         MHWRender::MRenderTargetDescription desc;
         colorTarget->targetDescription(desc);
+        int width = desc.width();
+        int height = desc.height();
+        int channels = 0;
         MHWRender::MRasterFormat format = desc.rasterFormat();
         switch (format) {
-            case MHWRender::kR32G32B32_FLOAT:
             case MHWRender::kR16G16B16A16_FLOAT:
-            case MHWRender::kR32G32B32A32_FLOAT:
+                type_desc = OIIO::TypeDesc::HALF;
                 frameExtension = ".exr";
+                channels = 4;
+                break;
+            case MHWRender::kR32G32B32_FLOAT:
+                type_desc = OIIO::TypeDesc::FLOAT;
+                frameExtension = ".exr";
+                channels = 3;
+                break;
+            case MHWRender::kR32G32B32A32_FLOAT:
+                type_desc = OIIO::TypeDesc::FLOAT;
+                frameExtension = ".exr";
+                channels = 4;
                 break;
             case MHWRender::kR8G8B8A8_UNORM:
             case MHWRender::kB8G8R8A8:
             case MHWRender::kA8B8G8R8:
+                type_desc = OIIO::TypeDesc::UINT8;
                 frameExtension = ".iff";
+                channels = 4;
                 break;
             default:
                 frameExtension = "";
@@ -169,19 +189,56 @@ void playblastOIIOCmd::captureCallback(MHWRender::MDrawContext &context, void *c
         frameName += frameExtension;
 
 
-        // Get a copy of the render target. We get it back as a texture to
-        // allow to use the "save texture" method on the texture manager for
-        // this example.
-        MHWRender::MTextureManager *textureManager = renderer->getTextureManager();
-        MHWRender::MTexture *colorTexture = context.copyCurrentColorRenderTargetToTexture();
-        if (colorTexture) {
-            // Save the texture to disk
-            MStatus status = textureManager->saveTexture(colorTexture, frameName);
-            saved = (status == MStatus::kSuccess);
+        if (!cmd->m_useOIIO) {
+            // Native Maya image writing.
 
-            // When finished with the texture, release it.
-            textureManager->releaseTexture(colorTexture);
+            // Get a copy of the render target. We get it back as a texture to
+            // allow to use the "save texture" method on the texture manager for
+            // this example.
+            MHWRender::MTextureManager *textureManager = renderer->getTextureManager();
+            MHWRender::MTexture *colorTexture = context.copyCurrentColorRenderTargetToTexture();
+            if (colorTexture) {
+                // Save the texture to disk
+                MStatus status = textureManager->saveTexture(colorTexture, frameName);
+                saved = (status == MStatus::kSuccess);
+
+                // When finished with the texture, release it.
+                textureManager->releaseTexture(colorTexture);
+            }
         }
+        else
+        {
+            // OpenImageIO image writing.
+            std::string filename = frameName.asChar();
+            OIIO::ImageOutput *img_out = OIIO::ImageOutput::create(filename);
+            if (!img_out) {
+                std::cerr << "OpenImageIO Error: Writing data failed!" << std::endl;
+                return;
+            }
+
+            int rowPitch = 0;
+            int slicePitch = 0;
+            void *rawData = const_cast<MHWRender::MRenderTarget *>(colorTarget)->rawData(rowPitch, slicePitch);
+            OIIO::ImageSpec img_out_spec(width, height, channels, type_desc);
+            // TODO: Pick the optimal compression method.
+            // Do we want to maximise read-speed, write speed, or both?
+            // img_out_spec.attribute("compression", "zip"); // Overall good speed vs compression - default.
+            // img_out_spec.attribute("compression", "zips"); // Seems slightly faster/slower than 'zip'.
+            // img_out_spec.attribute("compression", "piz"); // Good for photos, larger than zip, slower to compress.
+            // img_out_spec.attribute("compression", "b44a"); // Good for CG images with large flat colours areas.
+            // img_out_spec.attribute("compression", "b44"); // Fast reading and decoding.
+            img_out->open(filename, img_out_spec);
+            saved = img_out->write_image(type_desc, rawData,
+                                         OIIO::AutoStride,
+                                         OIIO::AutoStride,
+                                         OIIO::AutoStride);
+            img_out->close();
+            delete img_out;
+            colorTarget->freeRawData(rawData);
+        }
+
+
+
 
         // Release reference to the color target
         const MHWRender::MRenderTargetManager *targetManager = renderer->getRenderTargetManager();
@@ -253,26 +310,6 @@ MStatus playblastOIIOCmd::doIt(const MArgList &args) {
     //                           m_postSceneRenderNotificationSemantic,
     //                           (void *) this);
 
-    // MEL command to disable Colour Manager for all viewports.
-    bool displayEnabled = false;
-    bool undoEnabled = true;
-    MString cmdStr = "";
-    // cmdStr += "print(\"hello world\\n\");\n";
-    cmdStr += "string $panels[] = `getPanel -type \"modelPanel\"`;\n";
-    cmdStr += "for ($panel in $panels)\n";
-    cmdStr += "{\n";
-    cmdStr += "    string $editor = `modelPanel -q -modelEditor $panel`;\n";
-
-    MString cmdEnableStr = cmdStr;
-    cmdEnableStr += "    modelEditor -e -cmEnabled 1 $editor;\n";
-    cmdEnableStr += "};";
-
-    MString cmdDisableStr = cmdStr;
-    cmdDisableStr += "    modelEditor -e -cmEnabled 0 $editor;\n";
-    cmdDisableStr += "};";
-
-    MGlobal::executeCommand(cmdDisableStr, displayEnabled, undoEnabled);
-
     // Check for override image size.
     bool setOverride = (m_width > 0 && m_height > 0);
     if (setOverride) {
@@ -285,6 +322,7 @@ MStatus playblastOIIOCmd::doIt(const MArgList &args) {
         MAnimControl::setCurrentTime(m_currentTime);
         bool all = false;
         bool force = true;
+        // bool offscreen = true;
         view.refresh(all, force);
     }
 
@@ -303,8 +341,6 @@ MStatus playblastOIIOCmd::doIt(const MArgList &args) {
 
     // Disable target size override
     renderer->unsetOutputTargetOverrideSize();
-
-    MGlobal::executeCommand(cmdEnableStr, displayEnabled, undoEnabled);
 
     return status;
 }

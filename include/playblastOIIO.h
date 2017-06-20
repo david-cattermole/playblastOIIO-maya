@@ -55,6 +55,9 @@ namespace OIIO = OIIO_NAMESPACE;
 #define kImageSizeFlag      "-is"
 #define kImageSizeFlagLong  "-imageSize"
 
+#define kUseOIIOFlag      "-oi"
+#define kUseOIIOFlagLong  "-useOIIO"
+
 #define commandName         "playblastOIIO"
 
 // Command class declaration
@@ -84,6 +87,9 @@ private:
     // Override width and height
     unsigned int m_width;
     unsigned int m_height;
+
+    // Use OpenImageIO?
+    bool m_useOIIO;
 
     // VP2 capture notification information
     MString m_postRenderNotificationName;
@@ -134,7 +140,7 @@ private:
 //    static void postSceneCallback(MHWRender::MDrawContext &context, void *clientData);
 
     // Utility to print out pass information at notification time
-    void printPassInformation(MHWRender::MDrawContext &context);
+//    void printPassInformation(MHWRender::MDrawContext &context);
 };
 
 #endif // PLAYBLAST_OIIO_H
