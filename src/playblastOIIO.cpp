@@ -237,9 +237,6 @@ void playblastOIIOCmd::captureCallback(MHWRender::MDrawContext &context, void *c
             colorTarget->freeRawData(rawData);
         }
 
-
-
-
         // Release reference to the color target
         const MHWRender::MRenderTargetManager *targetManager = renderer->getRenderTargetManager();
         targetManager->releaseRenderTarget((MHWRender::MRenderTarget *) colorTarget);
